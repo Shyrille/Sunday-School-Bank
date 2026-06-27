@@ -114,6 +114,38 @@
 
         .teacher-view { display: none; }
 
+        /* Student Portal — Scan Gate */
+        .scan-gate-card { text-align: center; padding: 28px 24px; }
+        .scan-gate-btn { width: 100%; justify-content: center; padding: 18px; font-size: 1.05em; background: #6c3eb5; box-shadow: 0 4px 14px rgba(108,62,181,0.3); }
+        .scan-gate-btn:hover { background: #5a32a3; }
+        .scan-gate-btn i { font-size: 1.4em; }
+        .scan-gate-hint { font-size: 0.85em; color: var(--text-muted); margin-top: 12px; }
+
+        /* Student Portal — Identity Banner */
+        .identity-banner { display: none; background: linear-gradient(135deg, #1f9d55, #27ae60); border-radius: 14px; padding: 20px 22px; margin-bottom: 25px; color: #ffffff; box-shadow: 0 6px 20px rgba(39,174,96,0.28); }
+        .identity-banner.active { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+        .identity-banner-left { display: flex; align-items: center; gap: 14px; }
+        .identity-banner-avatar { width: 52px; height: 52px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 1.6em; flex-shrink: 0; }
+        .identity-banner-name { font-size: 1.15em; font-weight: 700; margin-bottom: 2px; }
+        .identity-banner-meta { font-size: 0.88em; opacity: 0.92; display: flex; gap: 14px; flex-wrap: wrap; }
+        .identity-banner-meta span { display: inline-flex; align-items: center; gap: 4px; }
+        .identity-banner-clear { background: rgba(255,255,255,0.18); color: #fff; border: 1px solid rgba(255,255,255,0.35); flex-shrink: 0; }
+        .identity-banner-clear:hover { background: rgba(255,255,255,0.3); }
+
+        /* Student Portal — Locked Function Panel */
+        .student-functions-wrapper { position: relative; }
+        .student-functions-lockbox { transition: filter 0.3s ease, opacity 0.3s ease; }
+        .student-functions-wrapper.locked .student-functions-lockbox { filter: blur(6px); opacity: 0.5; pointer-events: none; user-select: none; }
+        .student-functions-overlay { display: none; position: absolute; inset: 0; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; z-index: 10; }
+        .student-functions-wrapper.locked .student-functions-overlay { display: flex; }
+        .student-functions-overlay i { font-size: 2.2em; color: var(--text-muted); }
+        .student-functions-overlay p { font-weight: 600; color: var(--text-muted); font-size: 0.95em; }
+
+        .self-checkin-submit { width: 100%; justify-content: center; padding: 12px; background: var(--success); }
+        .balance-readout { display: flex; align-items: baseline; gap: 8px; background: var(--bg-app); border-radius: 10px; padding: 16px; }
+        .balance-readout .balance-figure { font-size: 1.8em; font-weight: 800; color: var(--primary); }
+        .balance-readout .balance-unit { font-size: 0.95em; color: var(--text-muted); font-weight: 600; }
+
         /* QR Scanner Modal */
         #qrScannerModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.85); backdrop-filter: blur(6px); z-index: 99999; justify-content: center; align-items: center; }
         .qr-modal-window { background: var(--bg-card); padding: 24px; border-radius: 16px; width: 340px; text-align: center; border: 1px solid var(--border-color); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
@@ -231,7 +263,7 @@
 <main>
     <header>
         <div class="header-title">
-            <h1 id="appHeaderTitle">Student Console</h1>
+            <h1 id="appHeaderTitle">Student Portal</h1>
             <p id="appHeaderSubtitle">Welcome to Sunday School Self-Service Terminal</p>
         </div>
         <div class="header-actions">
@@ -241,38 +273,78 @@
     </header>
 
     <div id="student-view" class="view-section active">
-        <div class="card">
-            <div class="card-title"><i class='bx bx-search-alt'></i> Check Personal Ledger Balances</div>
-            <div class="controls-grid">
-                <input type="number" id="searchStudentId" placeholder="Enter your ID Number">
-                <button onclick="checkMyBalance()"><i class='bx bx-right-arrow-alt'></i> Check Status</button>
-            </div>
-            <div id="studentBalanceResult" style="text-align: center; font-size: 1.1em; color: var(--primary); font-weight: 700;"></div>
+        <div class="card scan-gate-card">
+            <button class="scan-gate-btn" onclick="openQrScanner()"><i class='bx bx-qr-scan'></i> Tap to Scan QR ID</button>
+            <p class="scan-gate-hint">Scan your ID card to unlock your account.</p>
         </div>
 
-        <div class="card">
-            <div class="card-title"><i class='bx bx-transfer-alt'></i> Request Point Ledger Update</div>
-            <div class="controls-grid">
-                <select id="studentSelfSelect" onchange="syncStudentDropdowns(this.value)"><option value="">Select Your Name</option></select>
-                <input type="number" id="studentAmount" placeholder="Point Value Amount" min="0">
+        <div id="identityBanner" class="identity-banner">
+            <div class="identity-banner-left">
+                <div class="identity-banner-avatar"><i class='bx bx-user-check'></i></div>
+                <div>
+                    <div class="identity-banner-name" id="bannerStudentName">—</div>
+                    <div class="identity-banner-meta">
+                        <span><i class='bx bx-id-card'></i> ID: <strong id="bannerStudentId">—</strong></span>
+                        <span><i class='bx bx-coin-stack'></i> <strong id="bannerStudentBalance">0</strong> M</span>
+                        <span>🔥 <strong id="bannerStudentStreak">0</strong> wks</span>
+                    </div>
+                </div>
             </div>
-            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
-                <button style="background: #6c3eb5; flex: 1; justify-content: center;" onclick="openQrScanner()"><i class='bx bx-qr-scan'></i> Scan ID QR Code</button>
-            </div>
-            <div style="display: flex; gap: 10px;">
-                <button style="background: var(--success); flex: 1;" onclick="startStudentTransaction('deposit')"><i class='bx bx-plus-circle'></i> Deposit</button>
-                <button class="danger" style="flex: 1;" onclick="startStudentTransaction('withdraw')"><i class='bx bx-minus-circle'></i> Withdraw</button>
-            </div>
+            <button class="identity-banner-clear" onclick="clearStudentSession()"><i class='bx bx-x-circle'></i> Clear</button>
         </div>
 
-        <div class="card">
-            <div class="card-title"><i class='bx bx-party'></i> Claim Voucher Codes</div>
-            <div class="controls-grid">
-                <input type="text" id="studentGiftCodeInput" placeholder="Enter Gift Voucher Text" style="text-transform: uppercase;">
-                <button style="background: #16a085;" onclick="redeemGiftCodeStudent()"><i class='bx bx-gift'></i> Claim Code</button>
+        <div class="student-functions-wrapper locked" id="studentFunctionsWrapper">
+            <div class="student-functions-overlay">
+                <i class='bx bx-lock-alt'></i>
+                <p>Scan your ID to unlock these functions</p>
+            </div>
+
+            <div class="student-functions-lockbox">
+                <div class="card">
+                    <div class="card-title"><i class='bx bx-check-shield'></i> Self Check-In</div>
+                    <div class="toggle-group-row">
+                        <div class="toggle-container">
+                            <input type="checkbox" id="selfCheckinIdCardToggle" checked>
+                            <label for="selfCheckinIdCardToggle"><i class='bx bx-id-card' style="color: var(--primary);"></i> I Brought My Physical ID Card</label>
+                        </div>
+                        <div class="toggle-container">
+                            <input type="checkbox" id="selfCheckinBibleToggle" checked>
+                            <label for="selfCheckinBibleToggle"><i class='bx bx-book-bookmark' style="color: var(--success);"></i> I Brought My Physical Bible (+20 M)</label>
+                        </div>
+                    </div>
+                    <button class="self-checkin-submit" onclick="studentSelfCheckIn()"><i class='bx bx-check-double'></i> Submit Check-In</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class='bx bx-wallet'></i> Check Balance</div>
+                    <div class="balance-readout">
+                        <span class="balance-figure" id="liveBalanceFigure">0</span>
+                        <span class="balance-unit">Muscles</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class='bx bx-transfer-alt'></i> Transactions</div>
+                    <div class="controls-grid">
+                        <input type="number" id="studentAmount" placeholder="Point Value Amount" min="0">
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button style="background: var(--success); flex: 1;" onclick="startStudentTransaction('deposit')"><i class='bx bx-plus-circle'></i> Deposit</button>
+                        <button class="danger" style="flex: 1;" onclick="startStudentTransaction('withdraw')"><i class='bx bx-minus-circle'></i> Withdraw</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-title"><i class='bx bx-party'></i> Claim Voucher</div>
+                    <div class="controls-grid">
+                        <input type="text" id="studentGiftCodeInput" placeholder="Enter Gift Voucher Text" style="text-transform: uppercase;">
+                        <button style="background: #16a085;" onclick="redeemGiftCodeStudent()"><i class='bx bx-gift'></i> Claim</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
+
 
     <div id="dashboard-view" class="view-section">
         <div class="metrics-grid">
@@ -291,11 +363,11 @@
         </div>
 
         <div class="card">
-            <div class="card-title"><i class='bx bx-list-ol'></i> Master Scoreboard & Ledger</div>
+            <div class="card-title"><i class='bx bx-list-ol'></i> Bank Accounts</div>
             <div class="table-responsive">
                 <table>
                     <thead>
-                        <tr><th>ID</th><th>Student Profile Name</th><th>Active Streak</th><th>Current Ledger Bal</th><th>Action</th></tr>
+                        <tr><th>ID</th><th>Student Name</th><th>Active Streak</th><th>Current Balanceth><th>Action</th></tr>
                     </thead>
                     <tbody id="ledgerBody"></tbody>
                 </table>
@@ -361,7 +433,7 @@
         </div>
 
         <div class="card">
-            <div class="card-title"><i class='bx bx-edit-alt'></i> Modify Student Profile Metrics</div>
+            <div class="card-title"><i class='bx bx-edit-alt'></i> Modify Student Profile</div>
             <div class="controls-grid">
                 <input type="number" id="editTargetId" placeholder="Current Profile Target ID">
                 <input type="number" id="editNewId" placeholder="New Target ID Location (Optional)">
@@ -394,7 +466,7 @@
 
     <div id="vault-view" class="view-section">
         <div class="card">
-            <div class="card-title"><i class='bx bx-history'></i> Permanent Audit Transaction Ledger Record History</div>
+            <div class="card-title"><i class='bx bx-history'></i> Record History</div>
             <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
                 <p style="font-size: 0.9em; color: var(--text-muted);">Database Audit Log Elements Tracking History:</p>
                 <button class="danger" style="padding: 5px 10px; font-size: 0.8em;" onclick="clearLogs()"><i class='bx bx-trash'></i> Clear Records</button>
@@ -408,7 +480,7 @@
             <div class="card-title"><i class='bx bx-ghost'></i> Inactive Archived Hidden Profile Directory</div>
             <div class="table-responsive">
                 <table>
-                    <thead><tr><th>Archived ID</th><th>Student Profile Name</th><th>Action Row Command Options</th></tr></thead>
+                    <thead><tr><th>Archived ID</th><th>Student Name</th><th>Action Row Command Options</th></tr></thead>
                     <tbody id="archiveTableBody"></tbody>
                 </table>
             </div>
@@ -435,7 +507,7 @@
         </div>
 
         <div class="card">
-            <div class="card-title"><i class='bx bx-data'></i> Data Migration Ledger Guard</div>
+            <div class="card-title"><i class='bx bx-data'></i> Data Protection</div>
             <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 15px;">Export packed memory segments safely into copy strings, or import pre-existing backups to recover profiles.</p>
             <div class="controls-grid" style="grid-template-columns: 1fr 1fr;">
                 <button style="background: var(--text-muted); justify-content: center;" onclick="exportDataBackup()"><i class='bx bx-download'></i> Export Code</button>
@@ -480,6 +552,7 @@
     let ADMIN_PASSWORD = localStorage.getItem('ssAdminMasterKey') || "1234";
 
     let systemTransactionActionContext = null;
+    let currentScannedStudentId = null;
 
     function syncProfiles() {
         Object.keys(studentDirectory).forEach(id => {
@@ -542,8 +615,8 @@
         if (targetSectionId === 'settings-view') document.getElementById('nav-settings').classList.add('active');
         
         const titles = {
-            'student-view': ['Student Console', 'Welcome to Sunday School Self-Service Terminal'],
-            'dashboard-view': ['Management Dashboard', 'Overview of student score metrics and balance ledgers'],
+            'student-view': ['Student Portal', 'Welcome to Sunday School Student Portal'],
+            'dashboard-view': ['Management Dashboard', 'Overview of student accounts and balances'],
             'attendance-view': ['Attendance & Rosters', 'Select students and register incoming newcomers'],
             'teller-view': ['Teller Window Operations', 'Manually process cashflows, gift vouchers, and profile properties'],
             'vault-view': ['System Archives & Safety Records', 'Permanent transaction tracking logs and file storage profiles'],
@@ -656,34 +729,68 @@
         document.getElementById('editNewName').value = '';
     }
 
-    function checkMyBalance() {
-        const id = document.getElementById('searchStudentId').value.trim();
-        const resultBox = document.getElementById('studentBalanceResult');
-        if (!id) return;
-        
-        if (studentDirectory.hasOwnProperty(id) && bankData[id].status === "active") {
-            const name = studentDirectory[id];
-            const info = bankData[id];
-            resultBox.innerHTML = `👋 Shalom, ${name}! <br> 🔥 Streak: ${info.streak || 0} wks | 💰 Balance: ${info.balance || 0} Muscles`;
-        } else {
-            resultBox.innerHTML = "❌ ID number not found or profile is hidden.";
-        }
-        document.getElementById('searchStudentId').value = '';
+    function unlockStudentPanel(id) {
+        currentScannedStudentId = id;
+        const info = bankData[id];
+        const name = studentDirectory[id];
+
+        document.getElementById('bannerStudentName').textContent = name;
+        document.getElementById('bannerStudentId').textContent = id;
+        document.getElementById('bannerStudentBalance').textContent = info.balance || 0;
+        document.getElementById('bannerStudentStreak').textContent = info.streak || 0;
+        document.getElementById('liveBalanceFigure').textContent = info.balance || 0;
+
+        document.getElementById('identityBanner').classList.add('active');
+        document.getElementById('studentFunctionsWrapper').classList.remove('locked');
+
+        syncStudentDropdowns(id);
+    }
+
+    function clearStudentSession() {
+        currentScannedStudentId = null;
+
+        document.getElementById('identityBanner').classList.remove('active');
+        document.getElementById('studentFunctionsWrapper').classList.add('locked');
+
+        document.getElementById('bannerStudentName').textContent = '—';
+        document.getElementById('bannerStudentId').textContent = '—';
+        document.getElementById('bannerStudentBalance').textContent = '0';
+        document.getElementById('bannerStudentStreak').textContent = '0';
+        document.getElementById('liveBalanceFigure').textContent = '0';
+
+        document.getElementById('studentAmount').value = '';
+        document.getElementById('studentGiftCodeInput').value = '';
+        document.getElementById('selfCheckinIdCardToggle').checked = true;
+        document.getElementById('selfCheckinBibleToggle').checked = true;
+
+        syncStudentDropdowns('');
+    }
+
+    function refreshStudentConsoleReadout() {
+        if (!currentScannedStudentId) return;
+        const info = bankData[currentScannedStudentId];
+        if (!info) return;
+        document.getElementById('bannerStudentBalance').textContent = info.balance || 0;
+        document.getElementById('bannerStudentStreak').textContent = info.streak || 0;
+        document.getElementById('liveBalanceFigure').textContent = info.balance || 0;
     }
 
     function syncStudentDropdowns(val) {
         document.getElementById('studentSelect').value = val;
-        document.getElementById('studentSelfSelect').value = val;
         document.getElementById('settingsStudentSelect').value = val;
         document.getElementById('attendanceSelect').value = val;
     }
 
     function startStudentTransaction(actionType) {
-        const id = document.getElementById('studentSelfSelect').value;
+        const id = currentScannedStudentId;
         const amount = document.getElementById('studentAmount').value;
 
-        if (!id || !amount || isNaN(parseFloat(amount))) {
-            alert("Please select your name and input a numeric amount value.");
+        if (!id) {
+            alert("Scan your ID first to unlock this function.");
+            return;
+        }
+        if (!amount || isNaN(parseFloat(amount))) {
+            alert("Please input a numeric amount value.");
             return;
         }
         systemTransactionActionContext = { id: id, type: actionType, val: amount };
@@ -717,10 +824,12 @@
     function submitTeacherDepositAuthorization() {
         const inputPass = document.getElementById('teacherDepositAuthInputField').value;
         if (inputPass === ADMIN_PASSWORD) {
+            document.getElementById('studentSelect').value = systemTransactionActionContext.id;
             document.getElementById('amount').value = systemTransactionActionContext.val;
-            document.getElementById('txNote').value = "Student Console Self-Deposit (Teacher Authorized)";
+            document.getElementById('txNote').value = "Student Portal Self-Deposit (Teacher Authorized)";
             updateBalance('deposit');
             document.getElementById('studentAmount').value = '';
+            refreshStudentConsoleReadout();
             closeTeacherVerificationModal();
             alert("Teacher authorized. Deposit added.");
         } else {
@@ -744,6 +853,8 @@
             return;
         }
 
+        document.getElementById('studentSelect').value = id;
+
         if (!currentPin) {
             bankData[id].pin = pinInput;
             addTransactionLog(`🔒 PIN Registered: Student ${studentDirectory[id]} configured private security key`);
@@ -753,6 +864,7 @@
             document.getElementById('txNote').value = "Student Verified Cash-out Request (Initial PIN Setup)";
             updateBalance('withdraw');
             document.getElementById('studentAmount').value = '';
+            refreshStudentConsoleReadout();
             closeStudentPinModal();
         } else {
             if (pinInput === currentPin) {
@@ -760,6 +872,7 @@
                 document.getElementById('txNote').value = "Student Verified Cash-out Request";
                 updateBalance('withdraw');
                 document.getElementById('studentAmount').value = '';
+                refreshStudentConsoleReadout();
                 closeStudentPinModal();
             } else {
                 alert("Incorrect personal PIN code string value. Action aborted.");
@@ -783,10 +896,11 @@
     }
 
     function redeemGiftCodeStudent() {
-        const id = document.getElementById('studentSelfSelect').value;
+        const id = currentScannedStudentId;
         const codeField = document.getElementById('studentGiftCodeInput');
         const enteredCode = codeField.value.trim().toUpperCase();
-        if (!id || !enteredCode) return;
+        if (!id) { alert("Scan your ID first to unlock this function."); return; }
+        if (!enteredCode) return;
 
         if (giftCodeDirectory.hasOwnProperty(enteredCode)) {
             const rewardAmount = giftCodeDirectory[enteredCode];
@@ -794,6 +908,7 @@
             codeField.value = '';
             addTransactionLog(`🎁 Code Claimed (Student Window): ${studentDirectory[id]} redeemed "${enteredCode}" (+${rewardAmount} Muscles)`);
             saveData();
+            refreshStudentConsoleReadout();
             alert(`🎉 Success! Added ${rewardAmount} Muscles to your balance, ${studentDirectory[id]}!`);
         } else { alert("❌ Invalid Code."); }
     }
@@ -956,26 +1071,13 @@
         saveData();
     }
 
-    function processQuickAttendance() {
-        const idSelect = document.getElementById('attendanceSelect');
-        const hasIdCardCheckbox = document.getElementById('attendanceHasIdCardToggle');
-        const hasBibleCheckbox = document.getElementById('attendanceHasBibleToggle');
-        const id = idSelect.value;
-        
-        if (!id) {
-            alert("Please select a student name from the list first.");
-            return;
-        }
-        if (!studentDirectory.hasOwnProperty(id) || bankData[id].status === "hidden") return;
-        if (scannedToday.includes(id)) {
-            alert("Already marked present today!");
-            idSelect.value = '';
-            return;
-        }
+    function performAttendanceCheckIn(id, hasIdCard, hasBible) {
+        if (!studentDirectory.hasOwnProperty(id) || bankData[id].status === "hidden") return null;
+        if (scannedToday.includes(id)) return { alreadyDone: true };
 
         const student = bankData[id];
         const today = new Date(); today.setHours(0,0,0,0);
-        let calculatedStreak = 1; 
+        let calculatedStreak = 1;
 
         if (student.lastAttendanceDate) {
             const lastSeen = new Date(student.lastAttendanceDate); lastSeen.setHours(0,0,0,0);
@@ -983,41 +1085,87 @@
                 calculatedStreak = (student.streak || 0) + 1;
             }
         }
-        
-        let attendanceAward = 1; 
+
+        let attendanceAward = 1;
         let auditNotes = [];
-        
-        if (hasIdCardCheckbox.checked) {
-            attendanceAward = calculatedStreak; 
+
+        if (hasIdCard) {
+            attendanceAward = calculatedStreak;
             auditNotes.push("Brought ID Card");
         } else {
             auditNotes.push("No ID Card");
         }
 
         let bibleAward = 0;
-        if (hasBibleCheckbox.checked) {
-            bibleAward = 20; 
+        if (hasBible) {
+            bibleAward = 20;
             auditNotes.push("Brought Bible (+20M)");
         }
 
-        let grandTotalPointsAwarded = attendanceAward + bibleAward;
+        const grandTotalPointsAwarded = attendanceAward + bibleAward;
 
         student.streak = calculatedStreak;
-        student.balance += grandTotalPointsAwarded; 
+        student.balance += grandTotalPointsAwarded;
         student.lastAttendanceDate = today.toISOString();
         scannedToday.push(id);
-        
-        idSelect.value = '';
-        hasIdCardCheckbox.checked = true; 
-        hasBibleCheckbox.checked = true;
-        
-        addTransactionLog(`✅ Attendance Check-in: ${studentDirectory[id]} marked present. Streak: ${calculatedStreak}x. Reward: +${grandTotalPointsAwarded} Muscles (${auditNotes.join(', ')})`);
-        saveData();
-        
-        const attList = document.getElementById('attendanceList');
-        if (scannedToday.length === 1) attList.innerHTML = ''; 
-        attList.innerHTML = `<li>✅ <strong>${studentDirectory[id]}</strong> logged. Streak: ${calculatedStreak}x (${auditNotes.join(' | ')} ➔ +${grandTotalPointsAwarded} M)</li>` + attList.innerHTML;
+
+        return { alreadyDone: false, calculatedStreak, grandTotalPointsAwarded, auditNotes };
     }
+
+    function processQuickAttendance() {
+        const idSelect = document.getElementById('attendanceSelect');
+        const hasIdCardCheckbox = document.getElementById('attendanceHasIdCardToggle');
+        const hasBibleCheckbox = document.getElementById('attendanceHasBibleToggle');
+        const id = idSelect.value;
+
+        if (!id) {
+            alert("Please select a student name from the list first.");
+            return;
+        }
+
+        const result = performAttendanceCheckIn(id, hasIdCardCheckbox.checked, hasBibleCheckbox.checked);
+        if (!result) return;
+        if (result.alreadyDone) {
+            alert("Already marked present today!");
+            idSelect.value = '';
+            return;
+        }
+
+        idSelect.value = '';
+        hasIdCardCheckbox.checked = true;
+        hasBibleCheckbox.checked = true;
+
+        addTransactionLog(`✅ Attendance Check-in: ${studentDirectory[id]} marked present. Streak: ${result.calculatedStreak}x. Reward: +${result.grandTotalPointsAwarded} Muscles (${result.auditNotes.join(', ')})`);
+        saveData();
+
+        const attList = document.getElementById('attendanceList');
+        if (scannedToday.length === 1) attList.innerHTML = '';
+        attList.innerHTML = `<li>✅ <strong>${studentDirectory[id]}</strong> logged. Streak: ${result.calculatedStreak}x (${result.auditNotes.join(' | ')} ➔ +${result.grandTotalPointsAwarded} M)</li>` + attList.innerHTML;
+    }
+
+    function studentSelfCheckIn() {
+        const id = currentScannedStudentId;
+        const hasIdCardCheckbox = document.getElementById('selfCheckinIdCardToggle');
+        const hasBibleCheckbox = document.getElementById('selfCheckinBibleToggle');
+
+        if (!id) {
+            alert("Scan your ID first to unlock this function.");
+            return;
+        }
+
+        const result = performAttendanceCheckIn(id, hasIdCardCheckbox.checked, hasBibleCheckbox.checked);
+        if (!result) return;
+        if (result.alreadyDone) {
+            alert("You're already marked present today!");
+            return;
+        }
+
+        addTransactionLog(`✅ Self Check-In: ${studentDirectory[id]} marked present via Student Portal. Streak: ${result.calculatedStreak}x. Reward: +${result.grandTotalPointsAwarded} Muscles (${result.auditNotes.join(', ')})`);
+        saveData();
+        refreshStudentConsoleReadout();
+        alert(`✅ Checked in, ${studentDirectory[id]}! Streak: ${result.calculatedStreak}x — +${result.grandTotalPointsAwarded} Muscles awarded.`);
+    }
+
 
     function redeemGiftCodeAdmin() {
         const id = document.getElementById('studentSelect').value;
@@ -1077,7 +1225,6 @@
 
     function updateDropdowns() {
         const adminSelect = document.getElementById('studentSelect');
-        const studentSelect = document.getElementById('studentSelfSelect');
         const settingsSelect = document.getElementById('settingsStudentSelect');
         const attendanceSelect = document.getElementById('attendanceSelect');
         const activeIds = Object.keys(studentDirectory).filter(id => bankData[id] && bankData[id].status === "active").sort();
@@ -1086,7 +1233,6 @@
         
         if (adminSelect) adminSelect.innerHTML = html;
         if (settingsSelect) settingsSelect.innerHTML = html.replace('Select Student', 'Select Student to Clear');
-        if (studentSelect) studentSelect.innerHTML = html.replace('Select Student', 'Select Your Name');
         if (attendanceSelect) attendanceSelect.innerHTML = html.replace('Select Student', 'Select Student to Check In');
         
         document.getElementById('m-enrolled').textContent = activeIds.length;
@@ -1161,20 +1307,13 @@
 
     function handleQrResult(scannedValue) {
         closeQrScanner();
-        const status = document.getElementById('qrStatusText');
 
         // Accept numeric IDs or "ID:12345" format
         const idMatch = scannedValue.match(/(?:ID[:\-\s]*)?(\d+)/i);
         const detectedId = idMatch ? idMatch[1] : scannedValue;
 
         if (studentDirectory.hasOwnProperty(detectedId) && bankData[detectedId] && bankData[detectedId].status === 'active') {
-            syncStudentDropdowns(detectedId);
-            // Flash visual feedback
-            const sel = document.getElementById('studentSelfSelect');
-            sel.style.borderColor = 'var(--success)';
-            sel.style.boxShadow = '0 0 0 3px rgba(39,174,96,0.25)';
-            setTimeout(() => { sel.style.borderColor = ''; sel.style.boxShadow = ''; }, 2000);
-            alert(`✅ Scanned: ${studentDirectory[detectedId]} (ID: ${detectedId})\nNow enter an amount and tap Deposit or Withdraw.`);
+            unlockStudentPanel(detectedId);
         } else {
             alert(`❌ QR code scanned: "${scannedValue}"\nNo matching active student found for ID: ${detectedId}`);
         }
