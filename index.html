@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bank of the Kingdom</title>
     <link href="https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <style>
         :root {
             --bg-app: #f4f7f6;
@@ -112,6 +113,22 @@
         .toggle-container label { font-size: 0.9em; font-weight: 600; color: var(--text-main); cursor: pointer; }
 
         .teacher-view { display: none; }
+
+        /* QR Scanner Modal */
+        #qrScannerModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15,23,42,0.85); backdrop-filter: blur(6px); z-index: 99999; justify-content: center; align-items: center; }
+        .qr-modal-window { background: var(--bg-card); padding: 24px; border-radius: 16px; width: 340px; text-align: center; border: 1px solid var(--border-color); box-shadow: 0 20px 40px rgba(0,0,0,0.3); }
+        .qr-modal-title { font-size: 1em; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        #qrVideoContainer { position: relative; width: 100%; border-radius: 12px; overflow: hidden; background: #000; aspect-ratio: 1; margin-bottom: 14px; }
+        #qrVideo { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .qr-scan-line { position: absolute; top: 0; left: 0; width: 100%; height: 3px; background: var(--primary); opacity: 0.9; animation: scanLine 2s linear infinite; box-shadow: 0 0 8px var(--primary); }
+        .qr-corner { position: absolute; width: 24px; height: 24px; border-color: var(--primary); border-style: solid; }
+        .qr-corner.tl { top: 8px; left: 8px; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+        .qr-corner.tr { top: 8px; right: 8px; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+        .qr-corner.bl { bottom: 8px; left: 8px; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+        .qr-corner.br { bottom: 8px; right: 8px; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+        @keyframes scanLine { 0% { top: 10%; } 50% { top: 88%; } 100% { top: 10%; } }
+        #qrStatusText { font-size: 0.85em; color: var(--text-muted); margin-bottom: 14px; min-height: 18px; }
+        #qrCanvas { display: none; }
 
         /* Responsive Mobile Conversions (Adaptive Breakpoints) */
         @media (max-width: 834px) {
@@ -238,6 +255,9 @@
             <div class="controls-grid">
                 <select id="studentSelfSelect" onchange="syncStudentDropdowns(this.value)"><option value="">Select Your Name</option></select>
                 <input type="number" id="studentAmount" placeholder="Point Value Amount" min="0">
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                <button style="background: #6c3eb5; flex: 1; justify-content: center;" onclick="openQrScanner()"><i class='bx bx-qr-scan'></i> Scan ID QR Code</button>
             </div>
             <div style="display: flex; gap: 10px;">
                 <button style="background: var(--success); flex: 1;" onclick="startStudentTransaction('deposit')"><i class='bx bx-plus-circle'></i> Deposit</button>
@@ -430,6 +450,24 @@
         </div>
     </div>
 </main>
+
+<!-- QR Scanner Modal -->
+<div id="qrScannerModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.85); backdrop-filter:blur(6px); z-index:99999; justify-content:center; align-items:center;">
+    <div class="qr-modal-window">
+        <div class="qr-modal-title"><i class='bx bx-qr-scan' style="color:var(--primary); font-size:1.3em;"></i> Scan Student ID QR Code</div>
+        <div id="qrVideoContainer">
+            <video id="qrVideo" autoplay playsinline muted></video>
+            <div class="qr-scan-line"></div>
+            <div class="qr-corner tl"></div>
+            <div class="qr-corner tr"></div>
+            <div class="qr-corner bl"></div>
+            <div class="qr-corner br"></div>
+        </div>
+        <canvas id="qrCanvas"></canvas>
+        <p id="qrStatusText">Point camera at a QR code containing the student ID...</p>
+        <button class="secondary" style="width:100%; justify-content:center;" onclick="closeQrScanner()"><i class='bx bx-x'></i> Cancel</button>
+    </div>
+</div>
 
 <script>
     let studentDirectory = JSON.parse(localStorage.getItem('ssRosterDir')) || {};
@@ -1072,6 +1110,83 @@
     }
 
     renderTable(); renderArchiveTable(); renderCodesTable(); renderLogs(); updateDropdowns();
+
+    // ── QR SCANNER ──────────────────────────────────────────────────────────
+    let qrStream = null;
+    let qrAnimFrame = null;
+
+    async function openQrScanner() {
+        const modal = document.getElementById('qrScannerModal');
+        const video = document.getElementById('qrVideo');
+        const status = document.getElementById('qrStatusText');
+
+        status.textContent = 'Starting camera…';
+        modal.style.display = 'flex';
+
+        try {
+            qrStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            });
+            video.srcObject = qrStream;
+            await video.play();
+            status.textContent = 'Point camera at a QR code containing the student ID…';
+            requestAnimationFrame(scanQrFrame);
+        } catch (err) {
+            status.textContent = '⚠️ Camera access denied or unavailable.';
+            console.error('QR camera error:', err);
+        }
+    }
+
+    function scanQrFrame() {
+        const video = document.getElementById('qrVideo');
+        const canvas = document.getElementById('qrCanvas');
+        const status = document.getElementById('qrStatusText');
+
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
+
+            if (code) {
+                const scannedValue = code.data.trim();
+                handleQrResult(scannedValue);
+                return; // stop loop after success
+            }
+        }
+        qrAnimFrame = requestAnimationFrame(scanQrFrame);
+    }
+
+    function handleQrResult(scannedValue) {
+        closeQrScanner();
+        const status = document.getElementById('qrStatusText');
+
+        // Accept numeric IDs or "ID:12345" format
+        const idMatch = scannedValue.match(/(?:ID[:\-\s]*)?(\d+)/i);
+        const detectedId = idMatch ? idMatch[1] : scannedValue;
+
+        if (studentDirectory.hasOwnProperty(detectedId) && bankData[detectedId] && bankData[detectedId].status === 'active') {
+            syncStudentDropdowns(detectedId);
+            // Flash visual feedback
+            const sel = document.getElementById('studentSelfSelect');
+            sel.style.borderColor = 'var(--success)';
+            sel.style.boxShadow = '0 0 0 3px rgba(39,174,96,0.25)';
+            setTimeout(() => { sel.style.borderColor = ''; sel.style.boxShadow = ''; }, 2000);
+            alert(`✅ Scanned: ${studentDirectory[detectedId]} (ID: ${detectedId})\nNow enter an amount and tap Deposit or Withdraw.`);
+        } else {
+            alert(`❌ QR code scanned: "${scannedValue}"\nNo matching active student found for ID: ${detectedId}`);
+        }
+    }
+
+    function closeQrScanner() {
+        if (qrAnimFrame) { cancelAnimationFrame(qrAnimFrame); qrAnimFrame = null; }
+        if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+        const video = document.getElementById('qrVideo');
+        video.srcObject = null;
+        document.getElementById('qrScannerModal').style.display = 'none';
+    }
 </script>
 </body>
 </html>
