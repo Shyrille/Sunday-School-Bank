@@ -243,7 +243,7 @@
             <i class='bx bx-user-voice'></i> <span>Student Mode</span>
         </li>
         <li class="menu-item teacher-view" id="nav-dashboard" onclick="clientSwitchSection('dashboard-view')">
-            <i class='bx bx-grid-alt'></i> <span>Dashboard Board</span>
+            <i class='bx bx-grid-alt'></i> <span>Dashboard</span>
         </li>
         <li class="menu-item teacher-view" id="nav-attendance" onclick="clientSwitchSection('attendance-view')">
             <i class='bx bx-calendar-check'></i> <span>Attendance</span>
@@ -312,15 +312,18 @@
                             <input type="checkbox" id="selfCheckinBibleToggle" checked>
                             <label for="selfCheckinBibleToggle"><i class='bx bx-book-bookmark' style="color: var(--success);"></i> I Brought My Physical Bible (+20 M)</label>
                         </div>
+                        <div class="toggle-container" id="selfCheckinProtectionRow" style="display: none;">
+                            <input type="checkbox" id="selfCheckinProtectionToggle">
+                            <label for="selfCheckinProtectionToggle">🛡️ Use Streak Protection (restore to <strong id="selfCheckinRestorePreview">0</strong>x)</label>
+                        </div>
                     </div>
+                    <p id="selfCheckinProtectionHint" style="display: none; font-size: 0.8em; color: var(--text-muted); margin: -10px 0 15px;">Your streak just broke and your teacher set a restore value — check this box to use a Streak Protection charge and pick back up where you left off.</p>
                     <button class="self-checkin-submit" onclick="studentSelfCheckIn()"><i class='bx bx-check-double'></i> Submit Check-In</button>
-                </div>
 
-                <div class="card">
-                    <div class="card-title"><i class='bx bx-shield-quarter'></i> Use Streak Protection</div>
-                    <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 15px;">Missed last Sunday? Redeem a Streak Protection charge to keep your streak exactly where it was.</p>
-                    <p style="font-size: 0.9em; margin-bottom: 15px;">Available charges: <strong id="streakProtectionAvailable">0</strong></p>
-                    <button style="background: #6c3eb5; width: 100%; justify-content: center;" onclick="studentUseStreakProtection()"><i class='bx bx-shield-quarter'></i> Use Streak Protection</button>
+                    <div id="fixStreakRow" style="display: none; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                        <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 10px;">Already checked in today but your streak looks broken? Use your Streak Protection charge to correct it to <strong id="fixStreakPreview">0</strong>x.</p>
+                        <button style="background: #6c3eb5; width: 100%; justify-content: center;" onclick="studentFixStreak()"><i class='bx bx-wrench'></i> Fix My Streak</button>
+                    </div>
                 </div>
 
                
@@ -430,6 +433,11 @@
             <div class="controls-grid">
                 <input type="number" id="streakProtectionAmount" placeholder="Number of Charges to Add" min="1">
                 <button style="background: #6c3eb5; justify-content: center;" onclick="addStreakProtection()"><i class='bx bx-shield-quarter'></i> Add Streak Protection</button>
+            </div>
+            <p style="font-size: 0.8em; color: var(--text-muted); margin: -5px 0 10px;">If a student missed a Sunday and will redeem protection on their makeup visit, set their previous streak below first so it's ready when they check in.</p>
+            <div class="controls-grid">
+                <input type="number" id="streakRestoreAmount" placeholder="Previous Streak # (before the miss)" min="0">
+                <button style="background: #6c3eb5; justify-content: center;" onclick="setStreakRestoreValue()"><i class='bx bx-history'></i> Set Previous Streak</button>
             </div>
 
             <div class="card-subtitle">Prize Outlet Purchase Checkout</div>
@@ -565,11 +573,12 @@
         Object.keys(studentDirectory).forEach(id => {
             if (!bankData[id] || typeof bankData[id] !== 'object') {
                 let existingBal = typeof bankData[id] === 'number' ? bankData[id] : 0;
-                bankData[id] = { balance: existingBal, streak: 0, lastAttendanceDate: null, status: "active", pin: null, streakProtection: 0 };
+                bankData[id] = { balance: existingBal, streak: 0, lastAttendanceDate: null, status: "active", pin: null, streakProtection: 0, streakRestoreValue: null };
             } else {
                 if (bankData[id].status === undefined) bankData[id].status = "active";
                 if (bankData[id].pin === undefined) bankData[id].pin = null;
                 if (bankData[id].streakProtection === undefined) bankData[id].streakProtection = 0;
+                if (bankData[id].streakRestoreValue === undefined) bankData[id].streakRestoreValue = null;
             }
         });
     }
@@ -747,12 +756,12 @@
         document.getElementById('bannerStudentBalance').textContent = info.balance || 0;
         document.getElementById('bannerStudentStreak').textContent = info.streak || 0;
         document.getElementById('bannerStudentProtection').textContent = info.streakProtection || 0;
-        document.getElementById('streakProtectionAvailable').textContent = info.streakProtection || 0;
 
         document.getElementById('identityBanner').classList.add('active');
         document.getElementById('studentFunctionsWrapper').classList.remove('locked');
 
         syncStudentDropdowns(id);
+        updateSelfCheckinProtectionUI();
     }
 
     function clearStudentSession() {
@@ -766,12 +775,15 @@
         document.getElementById('bannerStudentBalance').textContent = '0';
         document.getElementById('bannerStudentStreak').textContent = '0';
         document.getElementById('bannerStudentProtection').textContent = '0';
-        document.getElementById('streakProtectionAvailable').textContent = '0';
 
         document.getElementById('studentAmount').value = '';
         document.getElementById('studentGiftCodeInput').value = '';
         document.getElementById('selfCheckinIdCardToggle').checked = true;
         document.getElementById('selfCheckinBibleToggle').checked = true;
+        document.getElementById('selfCheckinProtectionToggle').checked = false;
+        document.getElementById('selfCheckinProtectionRow').style.display = 'none';
+        document.getElementById('selfCheckinProtectionHint').style.display = 'none';
+        document.getElementById('fixStreakRow').style.display = 'none';
 
         syncStudentDropdowns('');
     }
@@ -783,7 +795,66 @@
         document.getElementById('bannerStudentBalance').textContent = info.balance || 0;
         document.getElementById('bannerStudentStreak').textContent = info.streak || 0;
         document.getElementById('bannerStudentProtection').textContent = info.streakProtection || 0;
-        document.getElementById('streakProtectionAvailable').textContent = info.streakProtection || 0;
+    }
+
+    function updateSelfCheckinProtectionUI() {
+        if (!currentScannedStudentId) return;
+        const info = bankData[currentScannedStudentId];
+        if (!info) return;
+
+        const row = document.getElementById('selfCheckinProtectionRow');
+        const hint = document.getElementById('selfCheckinProtectionHint');
+        const toggle = document.getElementById('selfCheckinProtectionToggle');
+        const preview = document.getElementById('selfCheckinRestorePreview');
+        const fixRow = document.getElementById('fixStreakRow');
+        const fixPreview = document.getElementById('fixStreakPreview');
+
+        const eligible = (info.streakProtection || 0) > 0 && info.streakRestoreValue !== null && info.streakRestoreValue !== undefined;
+        const alreadyCheckedInToday = scannedToday.includes(currentScannedStudentId);
+
+        if (eligible && !alreadyCheckedInToday) {
+            preview.textContent = (info.streakRestoreValue + 1);
+            row.style.display = 'flex';
+            hint.style.display = 'block';
+        } else {
+            toggle.checked = false;
+            row.style.display = 'none';
+            hint.style.display = 'none';
+        }
+
+        if (eligible && alreadyCheckedInToday) {
+            fixPreview.textContent = (info.streakRestoreValue + 1);
+            fixRow.style.display = 'block';
+        } else {
+            fixRow.style.display = 'none';
+        }
+    }
+
+    function studentFixStreak() {
+        const id = currentScannedStudentId;
+        if (!id) {
+            alert("Scan your ID first to unlock this function.");
+            return;
+        }
+
+        const student = bankData[id];
+        const eligible = (student.streakProtection || 0) > 0 && student.streakRestoreValue !== null && student.streakRestoreValue !== undefined;
+
+        if (!eligible) {
+            alert("No Streak Protection correction is available right now.");
+            return;
+        }
+
+        const correctedStreak = student.streakRestoreValue + 1;
+        student.streak = correctedStreak;
+        student.streakProtection = student.streakProtection - 1;
+        student.streakRestoreValue = null;
+
+        addTransactionLog(`🛡️ Streak Protection Used (Correction): ${studentDirectory[id]}'s already-logged streak corrected to ${correctedStreak}x (Remaining charges: ${student.streakProtection})`);
+        saveData();
+        refreshStudentConsoleReadout();
+        updateSelfCheckinProtectionUI();
+        alert(`🛡️ Streak corrected! Your streak is now ${correctedStreak}x. Remaining charges: ${student.streakProtection}`);
     }
 
     function syncStudentDropdowns(val) {
@@ -1029,7 +1100,7 @@
         if (!id || !name || studentDirectory.hasOwnProperty(id)) return;
 
         studentDirectory[id] = name;
-        bankData[id] = { balance: 0, streak: 0, lastAttendanceDate: null, status: "active", pin: null, streakProtection: 0 };
+        bankData[id] = { balance: 0, streak: 0, lastAttendanceDate: null, status: "active", pin: null, streakProtection: 0, streakRestoreValue: null };
         idField.value = ''; nameField.value = '';
         addTransactionLog(`👤 New Student Registered: ${name} (ID: ${id})`);
         saveData();
@@ -1099,22 +1170,54 @@
         addTransactionLog(`🛡️ Streak Protection Granted: ${studentDirectory[id]} received +${qty} charge(s) (Total: ${bankData[id].streakProtection})`);
         saveData();
         refreshStudentConsoleReadout();
+        updateSelfCheckinProtectionUI();
         alert(`Added ${qty} Streak Protection charge(s) for ${studentDirectory[id]}. Total: ${bankData[id].streakProtection}`);
     }
 
-    function performAttendanceCheckIn(id, hasIdCard, hasBible) {
+    function setStreakRestoreValue() {
+        const id = document.getElementById('studentSelect').value;
+        const value = parseInt(document.getElementById('streakRestoreAmount').value, 10);
+        if (!id) {
+            alert("Select a target student first.");
+            return;
+        }
+        if (isNaN(value) || value < 0) {
+            alert("Enter a valid previous streak number.");
+            return;
+        }
+
+        bankData[id].streakRestoreValue = value;
+        document.getElementById('streakRestoreAmount').value = '';
+        addTransactionLog(`🔧 Previous Streak Set: ${studentDirectory[id]}'s restore value set to ${value}x, ready for Streak Protection redemption on their next check-in`);
+        saveData();
+        refreshStudentConsoleReadout();
+        updateSelfCheckinProtectionUI();
+        alert(`Set ${studentDirectory[id]}'s previous streak to ${value}x. They can now redeem Streak Protection on their next Self Check-In.`);
+    }
+
+    function performAttendanceCheckIn(id, hasIdCard, hasBible, useProtection) {
         if (!studentDirectory.hasOwnProperty(id) || bankData[id].status === "hidden") return null;
         if (scannedToday.includes(id)) return { alreadyDone: true };
 
         const student = bankData[id];
         const today = new Date(); today.setHours(0,0,0,0);
         let calculatedStreak = 1;
+        let streakWasReset = true;
 
         if (student.lastAttendanceDate) {
             const lastSeen = new Date(student.lastAttendanceDate); lastSeen.setHours(0,0,0,0);
             if (Math.ceil(Math.abs(today - lastSeen) / (1000 * 60 * 60 * 24)) <= 10) {
                 calculatedStreak = (student.streak || 0) + 1;
+                streakWasReset = false;
             }
+        }
+
+        let protectionApplied = false;
+        if (useProtection && streakWasReset && (student.streakProtection || 0) > 0 && student.streakRestoreValue !== null && student.streakRestoreValue !== undefined) {
+            calculatedStreak = student.streakRestoreValue + 1;
+            student.streakProtection = student.streakProtection - 1;
+            student.streakRestoreValue = null;
+            protectionApplied = true;
         }
 
         let attendanceAward = 1;
@@ -1133,6 +1236,10 @@
             auditNotes.push("Brought Bible (+20M)");
         }
 
+        if (protectionApplied) {
+            auditNotes.push(`🛡️ Streak Protection used — restored to ${calculatedStreak}x`);
+        }
+
         const grandTotalPointsAwarded = attendanceAward + bibleAward;
 
         student.streak = calculatedStreak;
@@ -1140,7 +1247,7 @@
         student.lastAttendanceDate = today.toISOString();
         scannedToday.push(id);
 
-        return { alreadyDone: false, calculatedStreak, grandTotalPointsAwarded, auditNotes };
+        return { alreadyDone: false, calculatedStreak, grandTotalPointsAwarded, auditNotes, protectionApplied };
     }
 
     function processQuickAttendance() {
@@ -1154,13 +1261,7 @@
             return;
         }
 
-        const result = performAttendanceCheckIn(id, hasIdCardCheckbox.checked, hasBibleCheckbox.checked);
-        if (!result) return;
-        if (result.alreadyDone) {
-            alert("Already marked present today!");
-            idSelect.value = '';
-            return;
-        }
+        const result = performAttendanceCheckIn(id, hasIdCardCheckbox.checked, hasBibleCheckbox.checked, false);
 
         idSelect.value = '';
         hasIdCardCheckbox.checked = true;
@@ -1178,13 +1279,14 @@
         const id = currentScannedStudentId;
         const hasIdCardCheckbox = document.getElementById('selfCheckinIdCardToggle');
         const hasBibleCheckbox = document.getElementById('selfCheckinBibleToggle');
+        const useProtectionCheckbox = document.getElementById('selfCheckinProtectionToggle');
 
         if (!id) {
             alert("Scan your ID first to unlock this function.");
             return;
         }
 
-        const result = performAttendanceCheckIn(id, hasIdCardCheckbox.checked, hasBibleCheckbox.checked);
+        const result = performAttendanceCheckIn(id, hasIdCardCheckbox.checked, hasBibleCheckbox.checked, useProtectionCheckbox.checked);
         if (!result) return;
         if (result.alreadyDone) {
             alert("You're already marked present today!");
@@ -1194,40 +1296,13 @@
         addTransactionLog(`✅ Self Check-In: ${studentDirectory[id]} marked present via Student Portal. Streak: ${result.calculatedStreak}x. Reward: +${result.grandTotalPointsAwarded} Muscles (${result.auditNotes.join(', ')})`);
         saveData();
         refreshStudentConsoleReadout();
-        alert(`✅ Checked in, ${studentDirectory[id]}! Streak: ${result.calculatedStreak}x — +${result.grandTotalPointsAwarded} Muscles awarded.`);
-    }
+        updateSelfCheckinProtectionUI();
 
-    function studentUseStreakProtection() {
-        const id = currentScannedStudentId;
-        if (!id) {
-            alert("Scan your ID first to unlock this function.");
-            return;
+        if (result.protectionApplied) {
+            alert(`🛡️ Streak Protected! Checked in, ${studentDirectory[id]} — your streak picks back up at ${result.calculatedStreak}x. +${result.grandTotalPointsAwarded} Muscles awarded.`);
+        } else {
+            alert(`✅ Checked in, ${studentDirectory[id]}! Streak: ${result.calculatedStreak}x — +${result.grandTotalPointsAwarded} Muscles awarded.`);
         }
-
-        const student = bankData[id];
-        const charges = student.streakProtection || 0;
-
-        if (charges <= 0) {
-            alert("You don't have any Streak Protection charges to use.");
-            return;
-        }
-
-        const today = new Date(); today.setHours(0,0,0,0);
-        const gapDays = student.lastAttendanceDate ? Math.ceil(Math.abs(today - new Date(student.lastAttendanceDate)) / (1000 * 60 * 60 * 24)) : null;
-
-        if (gapDays === null || gapDays <= 10) {
-            alert("Streak Protection can only be used if your streak is currently at risk from a missed Sunday.");
-            return;
-        }
-
-        const preservedStreak = student.streak || 0;
-        student.streakProtection = charges - 1;
-        student.lastAttendanceDate = today.toISOString();
-
-        addTransactionLog(`🛡️ Streak Protection Used: ${studentDirectory[id]} redeemed a charge to preserve streak at ${preservedStreak}x (Remaining charges: ${student.streakProtection})`);
-        saveData();
-        refreshStudentConsoleReadout();
-        alert(`🛡️ Streak Protected! Your streak stays at ${preservedStreak}x. Remaining charges: ${student.streakProtection}`);
     }
 
 
@@ -1315,7 +1390,10 @@
             if (info.lastAttendanceDate && Math.ceil(Math.abs(new Date() - new Date(info.lastAttendanceDate)) / (1000*60*60*24)) > 10 && !scannedToday.includes(id)) {
                 streakDisplay = 0;
             }
-            return `<tr><td><code>${id}</code></td><td><strong>${studentDirectory[id]}</strong></td><td><span class="badge">🔥 ${streakDisplay} wks</span></td><td>🛡️ ${info.streakProtection || 0}</td><td><strong>${info.balance}</strong> M</td><td><button class="action-btn hide-btn" onclick="hideStudent('${id}')">Hide</button></td></tr>`;
+            const protectionCell = (info.streakRestoreValue !== null && info.streakRestoreValue !== undefined)
+                ? `🛡️ ${info.streakProtection || 0} <span style="color: var(--text-muted); font-size: 0.85em;">(restore: ${info.streakRestoreValue}x)</span>`
+                : `🛡️ ${info.streakProtection || 0}`;
+            return `<tr><td><code>${id}</code></td><td><strong>${studentDirectory[id]}</strong></td><td><span class="badge">🔥 ${streakDisplay} wks</span></td><td>${protectionCell}</td><td><strong>${info.balance}</strong> M</td><td><button class="action-btn hide-btn" onclick="hideStudent('${id}')">Hide</button></td></tr>`;
         }).join('');
     }
 
