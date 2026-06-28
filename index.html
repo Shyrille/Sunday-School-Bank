@@ -287,6 +287,7 @@
                         <span><i class='bx bx-id-card'></i> ID: <strong id="bannerStudentId">—</strong></span>
                         <span><i class='bx bx-coin-stack'></i> <strong id="bannerStudentBalance">0</strong> M</span>
                         <span>🔥 <strong id="bannerStudentStreak">0</strong> wks</span>
+                        <span>🛡️ <strong id="bannerStudentProtection">0</strong> protection</span>
                     </div>
                 </div>
             </div>
@@ -316,13 +317,13 @@
                 </div>
 
                 <div class="card">
-                    <div class="card-title"><i class='bx bx-wallet'></i> Check Balance</div>
-                    <div class="balance-readout">
-                        <span class="balance-figure" id="liveBalanceFigure">0</span>
-                        <span class="balance-unit">Muscles</span>
-                    </div>
+                    <div class="card-title"><i class='bx bx-shield-quarter'></i> Use Streak Protection</div>
+                    <p style="font-size: 0.85em; color: var(--text-muted); margin-bottom: 15px;">Missed last Sunday? Redeem a Streak Protection charge to keep your streak exactly where it was.</p>
+                    <p style="font-size: 0.9em; margin-bottom: 15px;">Available charges: <strong id="streakProtectionAvailable">0</strong></p>
+                    <button style="background: #6c3eb5; width: 100%; justify-content: center;" onclick="studentUseStreakProtection()"><i class='bx bx-shield-quarter'></i> Use Streak Protection</button>
                 </div>
 
+               
                 <div class="card">
                     <div class="card-title"><i class='bx bx-transfer-alt'></i> Transactions</div>
                     <div class="controls-grid">
@@ -367,7 +368,7 @@
             <div class="table-responsive">
                 <table>
                     <thead>
-                        <tr><th>ID</th><th>Student Name</th><th>Active Streak</th><th>Current Balanceth><th>Action</th></tr>
+                        <tr><th>ID</th><th>Student Name</th><th>Active Streak</th><th>Streak Protection</th><th>Current Balance</th><th>Action</th></tr>
                     </thead>
                     <tbody id="ledgerBody"></tbody>
                 </table>
@@ -423,6 +424,12 @@
                 <button style="background: var(--success); justify-content: center;" onclick="updateBalance('deposit')">Deposit</button>
                 <button class="danger" style="justify-content: center;" onclick="updateBalance('withdraw')">Withdraw</button>
                 <button class="warning" style="justify-content: center;" onclick="setManualStreak()">Set Streak</button>
+            </div>
+
+            <div class="card-subtitle">Streak Protection</div>
+            <div class="controls-grid">
+                <input type="number" id="streakProtectionAmount" placeholder="Number of Charges to Add" min="1">
+                <button style="background: #6c3eb5; justify-content: center;" onclick="addStreakProtection()"><i class='bx bx-shield-quarter'></i> Add Streak Protection</button>
             </div>
 
             <div class="card-subtitle">Prize Outlet Purchase Checkout</div>
@@ -558,10 +565,11 @@
         Object.keys(studentDirectory).forEach(id => {
             if (!bankData[id] || typeof bankData[id] !== 'object') {
                 let existingBal = typeof bankData[id] === 'number' ? bankData[id] : 0;
-                bankData[id] = { balance: existingBal, streak: 0, lastAttendanceDate: null, status: "active", pin: null };
+                bankData[id] = { balance: existingBal, streak: 0, lastAttendanceDate: null, status: "active", pin: null, streakProtection: 0 };
             } else {
                 if (bankData[id].status === undefined) bankData[id].status = "active";
                 if (bankData[id].pin === undefined) bankData[id].pin = null;
+                if (bankData[id].streakProtection === undefined) bankData[id].streakProtection = 0;
             }
         });
     }
@@ -738,7 +746,8 @@
         document.getElementById('bannerStudentId').textContent = id;
         document.getElementById('bannerStudentBalance').textContent = info.balance || 0;
         document.getElementById('bannerStudentStreak').textContent = info.streak || 0;
-        document.getElementById('liveBalanceFigure').textContent = info.balance || 0;
+        document.getElementById('bannerStudentProtection').textContent = info.streakProtection || 0;
+        document.getElementById('streakProtectionAvailable').textContent = info.streakProtection || 0;
 
         document.getElementById('identityBanner').classList.add('active');
         document.getElementById('studentFunctionsWrapper').classList.remove('locked');
@@ -756,7 +765,8 @@
         document.getElementById('bannerStudentId').textContent = '—';
         document.getElementById('bannerStudentBalance').textContent = '0';
         document.getElementById('bannerStudentStreak').textContent = '0';
-        document.getElementById('liveBalanceFigure').textContent = '0';
+        document.getElementById('bannerStudentProtection').textContent = '0';
+        document.getElementById('streakProtectionAvailable').textContent = '0';
 
         document.getElementById('studentAmount').value = '';
         document.getElementById('studentGiftCodeInput').value = '';
@@ -772,7 +782,8 @@
         if (!info) return;
         document.getElementById('bannerStudentBalance').textContent = info.balance || 0;
         document.getElementById('bannerStudentStreak').textContent = info.streak || 0;
-        document.getElementById('liveBalanceFigure').textContent = info.balance || 0;
+        document.getElementById('bannerStudentProtection').textContent = info.streakProtection || 0;
+        document.getElementById('streakProtectionAvailable').textContent = info.streakProtection || 0;
     }
 
     function syncStudentDropdowns(val) {
@@ -1018,7 +1029,7 @@
         if (!id || !name || studentDirectory.hasOwnProperty(id)) return;
 
         studentDirectory[id] = name;
-        bankData[id] = { balance: 0, streak: 0, lastAttendanceDate: null, status: "active", pin: null };
+        bankData[id] = { balance: 0, streak: 0, lastAttendanceDate: null, status: "active", pin: null, streakProtection: 0 };
         idField.value = ''; nameField.value = '';
         addTransactionLog(`👤 New Student Registered: ${name} (ID: ${id})`);
         saveData();
@@ -1069,6 +1080,26 @@
         document.getElementById('amount').value = '';
         addTransactionLog(`🔧 Admin Overwrote: Set ${studentDirectory[id]}'s streak count to ${targetStreak}`);
         saveData();
+    }
+
+    function addStreakProtection() {
+        const id = document.getElementById('studentSelect').value;
+        const qty = parseInt(document.getElementById('streakProtectionAmount').value, 10);
+        if (!id) {
+            alert("Select a target student first.");
+            return;
+        }
+        if (isNaN(qty) || qty <= 0) {
+            alert("Enter a valid number of streak protection charges to add.");
+            return;
+        }
+
+        bankData[id].streakProtection = (bankData[id].streakProtection || 0) + qty;
+        document.getElementById('streakProtectionAmount').value = '';
+        addTransactionLog(`🛡️ Streak Protection Granted: ${studentDirectory[id]} received +${qty} charge(s) (Total: ${bankData[id].streakProtection})`);
+        saveData();
+        refreshStudentConsoleReadout();
+        alert(`Added ${qty} Streak Protection charge(s) for ${studentDirectory[id]}. Total: ${bankData[id].streakProtection}`);
     }
 
     function performAttendanceCheckIn(id, hasIdCard, hasBible) {
@@ -1166,6 +1197,39 @@
         alert(`✅ Checked in, ${studentDirectory[id]}! Streak: ${result.calculatedStreak}x — +${result.grandTotalPointsAwarded} Muscles awarded.`);
     }
 
+    function studentUseStreakProtection() {
+        const id = currentScannedStudentId;
+        if (!id) {
+            alert("Scan your ID first to unlock this function.");
+            return;
+        }
+
+        const student = bankData[id];
+        const charges = student.streakProtection || 0;
+
+        if (charges <= 0) {
+            alert("You don't have any Streak Protection charges to use.");
+            return;
+        }
+
+        const today = new Date(); today.setHours(0,0,0,0);
+        const gapDays = student.lastAttendanceDate ? Math.ceil(Math.abs(today - new Date(student.lastAttendanceDate)) / (1000 * 60 * 60 * 24)) : null;
+
+        if (gapDays === null || gapDays <= 10) {
+            alert("Streak Protection can only be used if your streak is currently at risk from a missed Sunday.");
+            return;
+        }
+
+        const preservedStreak = student.streak || 0;
+        student.streakProtection = charges - 1;
+        student.lastAttendanceDate = today.toISOString();
+
+        addTransactionLog(`🛡️ Streak Protection Used: ${studentDirectory[id]} redeemed a charge to preserve streak at ${preservedStreak}x (Remaining charges: ${student.streakProtection})`);
+        saveData();
+        refreshStudentConsoleReadout();
+        alert(`🛡️ Streak Protected! Your streak stays at ${preservedStreak}x. Remaining charges: ${student.streakProtection}`);
+    }
+
 
     function redeemGiftCodeAdmin() {
         const id = document.getElementById('studentSelect').value;
@@ -1245,13 +1309,13 @@
         if (!body) return;
         const activeIds = Object.keys(studentDirectory).filter(id => !bankData[id] || bankData[id].status !== "hidden").sort();
 
-        body.innerHTML = activeIds.length === 0 ? '<tr><td colspan="5" style="text-align:center;padding:20px;">Roster empty.</td></tr>' : activeIds.map(id => {
+        body.innerHTML = activeIds.length === 0 ? '<tr><td colspan="6" style="text-align:center;padding:20px;">Roster empty.</td></tr>' : activeIds.map(id => {
             const info = bankData[id];
             let streakDisplay = info.streak || 0;
             if (info.lastAttendanceDate && Math.ceil(Math.abs(new Date() - new Date(info.lastAttendanceDate)) / (1000*60*60*24)) > 10 && !scannedToday.includes(id)) {
                 streakDisplay = 0;
             }
-            return `<tr><td><code>${id}</code></td><td><strong>${studentDirectory[id]}</strong></td><td><span class="badge">🔥 ${streakDisplay} wks</span></td><td><strong>${info.balance}</strong> M</td><td><button class="action-btn hide-btn" onclick="hideStudent('${id}')">Hide</button></td></tr>`;
+            return `<tr><td><code>${id}</code></td><td><strong>${studentDirectory[id]}</strong></td><td><span class="badge">🔥 ${streakDisplay} wks</span></td><td>🛡️ ${info.streakProtection || 0}</td><td><strong>${info.balance}</strong> M</td><td><button class="action-btn hide-btn" onclick="hideStudent('${id}')">Hide</button></td></tr>`;
         }).join('');
     }
 
