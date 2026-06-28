@@ -584,6 +584,14 @@
     }
     syncProfiles();
 
+    function hasCheckedInToday(id) {
+        const student = bankData[id];
+        if (!student || !student.lastAttendanceDate) return false;
+        const today = new Date(); today.setHours(0,0,0,0);
+        const lastSeen = new Date(student.lastAttendanceDate); lastSeen.setHours(0,0,0,0);
+        return today.getTime() === lastSeen.getTime();
+    }
+
     function toggleTheme() {
         const doc = document.documentElement;
         const icon = document.getElementById('themeIcon');
@@ -810,7 +818,7 @@
         const fixPreview = document.getElementById('fixStreakPreview');
 
         const eligible = (info.streakProtection || 0) > 0 && info.streakRestoreValue !== null && info.streakRestoreValue !== undefined;
-        const alreadyCheckedInToday = scannedToday.includes(currentScannedStudentId);
+        const alreadyCheckedInToday = hasCheckedInToday(currentScannedStudentId);
 
         if (eligible && !alreadyCheckedInToday) {
             preview.textContent = (info.streakRestoreValue + 1);
@@ -1197,23 +1205,22 @@
 
     function performAttendanceCheckIn(id, hasIdCard, hasBible, useProtection) {
         if (!studentDirectory.hasOwnProperty(id) || bankData[id].status === "hidden") return null;
-        if (scannedToday.includes(id)) return { alreadyDone: true };
+        if (hasCheckedInToday(id)) return { alreadyDone: true };
 
         const student = bankData[id];
         const today = new Date(); today.setHours(0,0,0,0);
         let calculatedStreak = 1;
-        let streakWasReset = true;
 
         if (student.lastAttendanceDate) {
             const lastSeen = new Date(student.lastAttendanceDate); lastSeen.setHours(0,0,0,0);
             if (Math.ceil(Math.abs(today - lastSeen) / (1000 * 60 * 60 * 24)) <= 10) {
                 calculatedStreak = (student.streak || 0) + 1;
-                streakWasReset = false;
             }
         }
 
         let protectionApplied = false;
-        if (useProtection && streakWasReset && (student.streakProtection || 0) > 0 && student.streakRestoreValue !== null && student.streakRestoreValue !== undefined) {
+        const protectionAvailable = (student.streakProtection || 0) > 0 && student.streakRestoreValue !== null && student.streakRestoreValue !== undefined;
+        if (useProtection && protectionAvailable) {
             calculatedStreak = student.streakRestoreValue + 1;
             student.streakProtection = student.streakProtection - 1;
             student.streakRestoreValue = null;
